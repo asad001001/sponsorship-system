@@ -35,7 +35,7 @@ class Paulund_Wp_List_Table
 	public function get_state($slug)
     {
 		global $wpdb;
-		$sql = "SELECT * FROM scg_state where is_deleted='N' and is_active='Y' and  lower(state_abbr) ='".$slug."' "; 
+		$sql    = $wpdb->prepare( "SELECT * FROM scg_state WHERE is_deleted='N' AND is_active='Y' AND LOWER(state_abbr) = %s", $slug );
 		$result = $wpdb->get_results( $sql, 'ARRAY_A' );
 		$row = array();
 		if(!empty($result)){
@@ -46,8 +46,8 @@ class Paulund_Wp_List_Table
     public function get_state_data()
     {
 		global $wpdb;
-    	$state = explode('-',$_REQUEST['id']);
-    	$state_abbre  = strtolower($state[1]);
+    	$state = explode( '-', sanitize_text_field( wp_unslash( $_REQUEST['id'] ?? '' ) ) );
+    	$state_abbre  = strtolower( $state[1] ?? '' );
 
 		$result = $this->get_state($state_abbre);
 		if(!empty($result)){
@@ -69,7 +69,7 @@ class Paulund_Wp_List_Table
     		"link" 			=> esc_sql($_REQUEST['url']),
     		"open_window" 	=> esc_sql($_REQUEST['open_window'])
 		);
-    	$wpdb->update( "scg_state", $input_arr,array('state_id'=>$_REQUEST['edit_id']));
+    	$wpdb->update( "scg_state", $input_arr, array( 'state_id' => absint( $_REQUEST['edit_id'] ?? 0 ) ) );
 
 		$resp['status'] = true;
 		$resp['msg'] 	= "Record has been updated successfully!";
@@ -262,7 +262,6 @@ if (!empty($where)) {
 //     GROUP BY animal_id
 //     ORDER BY animal_name ASC
 // ";
-echo $wpdb->prepare($sql, $params);
 $results = !empty($params)
     ? $wpdb->get_results($wpdb->prepare($sql, $params),ARRAY_A)
     : $wpdb->get_results($sql,ARRAY_A);
@@ -272,11 +271,6 @@ $results = !empty($params)
 //     echo $row->animal_name . ' - ' . esc_html($row->updated_at) . "<br>";
 // }
 		
-		/*if(isset($_GET['test-report'])){
-			print_r($date_from);
-			echo "<br>";
-			print_r($date_to);
-		}*/
 		
 		
         
@@ -650,10 +644,6 @@ $results = !empty($params)
 								}
 								
 							}
-							/*if(isset($_GET['test-report'])){
-								echo "<pre>";
-								print_r($dataPoints);exit();
-							}*/
                     	?>
                 <?php }else{ ?>
                     <tr> 

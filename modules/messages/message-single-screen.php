@@ -2,12 +2,11 @@
 /**
 * Single message screen
 */
-
 if(!isset($_GET['sp_id']) || empty($_GET['sp_id'])){
 	esc_html_e( 'Sponsored Animal : N/A', 'my-plugin-textdomain' );
 	exit();
 }else{
-	$SpncerId = $_GET['sp_id'];
+	$SpncerId = absint( $_GET['sp_id'] );
 	$spnShipPost = get_post($SpncerId);
 	$spnShipTitle = $spnShipPost->post_title;
 	$showMsg = "";
@@ -22,13 +21,13 @@ if(!isset($_GET['sp_id']) || empty($_GET['sp_id'])){
 	/**
 	* Submit message & save data & send emails if sponsors exists
 	*/
-	if(isset($_POST['post_message']) && isset($_POST['post_text']) && isset($_POST['spon_id']) && !empty($_POST['post_text'])){
-		$sponsorshipId = trim($_POST['spon_id']);
+	if(isset($_POST['post_message']) && check_admin_referer( 'hm_send_message', 'hm_nonce' ) && isset($_POST['post_text']) && isset($_POST['spon_id']) && !empty($_POST['post_text'])){
+		$sponsorshipId = absint( $_POST['spon_id'] );
 		$sponsorEmails = array();
 		#save Message Post
 		$my_post = array(
-			'post_title' => "",
-			'post_content' => $_POST['post_text'],
+			'post_title' => sanitize_text_field( wp_unslash( $_POST['subject02'] ?? '' ) ),
+			'post_content' => wp_kses_post( wp_unslash( $_POST['post_text'] ) ),
 			'post_status' => 'publish',
 			'post_type' => 'messages',
 			'post_author' => get_current_user_id()
@@ -39,28 +38,56 @@ if(!isset($_GET['sp_id']) || empty($_GET['sp_id'])){
 			update_field('sponsored_id', $SpncerId, $the_post_id );
 		}
 		
+		   global $wpdb;
+                            $t = $wpdb->prefix . 'sponsorships';
+                    
+                            $sql = $wpdb->prepare(
+                                "SELECT *
+                                 FROM {$t}
+                                 WHERE animal_id = %d",
+                                $sponsorshipId
+                            );
+                    
+                            $query_results = $wpdb->get_results($sql);
+                            //  print_r($query_results);
+							
+
+						
 		
 		#Send Emails to sponsors
-		$args = array(
-		    'post_type'  => 'sponsors',
-			'post_status' => 'publish',
-			'numberposts' => -1,
-		    'meta_query' => array(
-		        array(
-		            'key'     => 'specify',
-		            'value'   => $sponsorshipId
-		        ),
-		    ),
-		);
+		#Only for Monthly sponsors
+// 		$args = array(
+// 		    'post_type'  => 'sponsors',
+// 			'post_status' => 'publish',
+// 			'numberposts' => -1,
+// 			 'post__in' => array( 43, 23, 65 )
+// 		  //  'meta_query' => array(
+// 		  //      array(
+// 		  //          'key'     => 'specify',
+// 		  //          'value'   => $sponsorshipId
+// 		  //      ),
+// 		  //      array(
+// 		  //          'key'     => 'plan',
+// 		  //          'value'   => 'Monthly sponsor'
+// 		  //      ),
+// 		  //  ),
+// 		);
+// // 		$args = array(
+// //     'post__in' => array( 43, 23, 65 ), // An array of the specific post IDs you want
+// //     'post_type' => 'any',              // Optional: Retrieve posts from all post types
+// //     'posts_per_page' => -1,          // Optional: To ensure all matching posts are returned, not just a default limit
+// //     'ignore_sticky_posts' => true    // Optional: Prevents sticky posts from being prepended
+// // );
 		
-		$spons = get_posts($args);
-		if(count($spons) > 0){
-			foreach($spons as $key => $value){
-				$id = $value->ID;
+// 		$spons = get_posts($args);
+		if(count($query_results) > 0){
+		    
+			foreach($query_results as $value){
+				$id = $value->sponsor_id;
 				$sponName = get_post_meta($id, 'name', TRUE);
 				$sponEmail = get_post_meta($id, 'email', TRUE);
 				if(!in_array($sponEmail, $sponsorEmails)){
-					sendCancelEmail($sponEmail, $sponName, $_POST['post_text']);
+					sendCancelEmail($sponEmail, $sponName, wp_kses_post( wp_unslash( $_POST['post_text'] ) ), sanitize_text_field( wp_unslash( $_POST['subject02'] ?? '' ) ));
 				}
 				$sponsorEmails[] = $sponEmail;
 			}
@@ -75,6 +102,10 @@ if(!isset($_GET['sp_id']) || empty($_GET['sp_id'])){
 		$showMsg = "New message has been posted successfully.";
 	}
 	
+	/**
+	* Show success message
+	* 
+	*/
 	if(!empty($showMsg)){
 		echo "<div class='notice notice-success is-dismissible'>
 		    <p>$showMsg</p>
@@ -90,17 +121,21 @@ if(!isset($_GET['sp_id']) || empty($_GET['sp_id'])){
 	<div class="col-md-12">
 		<form method="post" action="">
 			<h3>Send New Message</h3>
+			<?php wp_nonce_field( 'hm_send_message', 'hm_nonce' ); ?>
 			<input type="hidden" name="post_message" value="true"/>
-			<input type="hidden" id="spon_id" name="spon_id" value="<?php echo $SpncerId; ?>"/>
-			<input type="hidden" id="spon_title" name="spon_title" value="<?php echo $spnShipTitle; ?>"/>
+			<input type="hidden" id="spon_id" name="spon_id" value="<?php echo esc_attr( $SpncerId ); ?>"/>
+			<input type="hidden" id="spon_title" name="spon_title" value="<?php echo esc_attr( $spnShipTitle ); ?>"/>
+	    	<strong>Subject Title:</strong><br />
+	    	<input type="text" name="subject02" value="" style="width:80%;margin-bottom: 30px;margin-top: 5px;border: 1px solid #ccc;" />
 	    	<?php
+
 		    	$id = "post_text";
 				$name = 'post_text';
 				$content = esc_textarea( stripslashes( "" ) );
 				$settings = array('tinymce' => true, 'textarea_name' => $name);
 				wp_editor($content, $id, $settings);
 	    	?>
-	    	<!--<textarea style="width: 100%;" name="post_text" cols="10" rows="10"></textarea>-->
+	    	
 			<div style="text-align: right; padding-top: 20px;">
 				<a class="button-primary" href="<?php echo admin_url("admin.php?page=message-log" ).'&action=edit'; ?>">Cancel</a>
 				<button type="submit" class="button-primary">Send Message</button>							
@@ -113,27 +148,15 @@ if(!isset($_GET['sp_id']) || empty($_GET['sp_id'])){
 
 	<br />
 	<!--Messages columns-->
-	<style>
-		.col-6 {
-			width:49;
-			width:49.5%;
-		}
-		.colContainer {
-			display: flex;
-    		justify-content: space-between;
-		}
-	</style>
 	<div class="colContainer" id="col-container">
 	    <div class="col-6">
 	        <div class="col-wrap">
 	            <table class="wp-list-table widefat striped table-view-list" cellspacing="0">
+					
 					<thead>
 						<tr>
-							<th id="titls" width="25%" class="manage-column column-columnname" scope="col">Date</th> 
-							<th id="titls" width="25%" class="manage-column column-columnname" scope="col">Message</th> 
-							<th id="titls" width="25%" class="manage-column column-columnname" scope="col">Status</th> 
-							<th id="titls" width="25%" class="manage-column column-columnname" scope="col">Action</th>
-					   </tr>
+							<th>Messages</th>
+						</tr>
 					</thead>
 					<tbody>
 						<?php
@@ -151,6 +174,7 @@ if(!isset($_GET['sp_id']) || empty($_GET['sp_id'])){
 							        ),
 							    ),
 							);
+							
 							$xoquery = new WP_Query( $args );
 							$just_count = 0;
 							while ($xoquery->have_posts()) {
@@ -164,6 +188,7 @@ if(!isset($_GET['sp_id']) || empty($_GET['sp_id'])){
 								if(isset($msgMeta['notified_emails'][0])){
 									$notifiedEmails = $msgMeta['notified_emails'][0];
 								}
+								$the_subject = sanitize_text_field( wp_unslash( $_POST['subject02'] ?? '' ) );
 								$the_content_full = apply_filters('the_content', get_the_content());
 								$the_content = wp_strip_all_tags( $the_content_full );
 								$message = !empty($the_content) ? substr($the_content, 0, 100) : "...";
@@ -174,13 +199,29 @@ if(!isset($_GET['sp_id']) || empty($_GET['sp_id'])){
 								}
 								?>
 								<tr class="<?php echo $alternateclass; ?>" valign="top">
-										
-									<td class="manage-column column-columnname"><?php echo date('j/n/Y', strtotime($postMsg->post_date)); ?></td>
-									<td class="manage-column column-columnname"><?php echo $message; ?></td>
-									<td class="manage-column column-columnname"><?php echo $msgPostStatus; ?></td>
-									<!--<td class="manage-column column-columnname"><a href="<?php echo admin_url("post.php?post=$msgId" ).'&action=edit'; ?>">Details</a></td>-->
-									<td class="manage-column column-columnname"><a  href="#TB_inline?&width=100%&height=auto&inlineId=message-id-<?php echo $msgId; ?>" class="thickbox button-primary">Details</a></td>
-						        </tr>
+									<td>
+										<div class="msgDtail">
+											<span class="md-date"><i class="icon-clock"></i><?php echo date('j/n/Y', strtotime($postMsg->post_date)); ?></span>
+											<div class="fullMsg">
+												<p><strong><?php echo $postMsg->post_title ?></strong></p>
+												<!-- <h4>Complete Message</h4> -->
+												<?php echo $message; ?>
+											</div>
+											<div class="msgFooter">
+												<?php 
+												$statusClass;
+												if($msgPostStatus == 'publish') {
+													$statusClass = 'published';
+													$msgPostStatus = 'published';
+												} else {
+													$statusClass = 'not-published';
+												} ?>
+												<span class="md-status <?php echo $statusClass; ?>"><?php echo $msgPostStatus; ?></span>
+												<span class="md-action"><a  href="#TB_inline?&width=100%&height=auto&inlineId=message-id-<?php echo $msgId; ?>" class="thickbox button-primary">Details</a></span>
+											</div>
+										</div>
+									</td>
+								</tr>
 						        
 						        <?php
 								add_thickbox();
@@ -192,6 +233,11 @@ if(!isset($_GET['sp_id']) || empty($_GET['sp_id'])){
 											<div class="leftSide"><p><strong>Message Date</strong></p></div>
 											<div class="rightSide"><p><?php echo date('j/n/Y', strtotime($postMsg->post_date)); ?></p></div>
 										</div>
+										<div class="new-pointer">
+											<div class="leftSide"><p><strong>Subject Title</strong></p></div>
+											<div class="rightSide"><?php echo $postMsg->post_title ?></div>
+										</div>
+
 										<div class="new-pointer">
 											<div class="leftSide"><p><strong>Full Message</strong></p></div>
 											<div class="rightSide"><?php echo $the_content_full; ?></div>
@@ -231,28 +277,28 @@ if(!isset($_GET['sp_id']) || empty($_GET['sp_id'])){
 						</thead>
 						<tbody>
 							<?php
-							//get Messages
-							$args = array(
-							    'post_type'  => 'sponsors',
-							    'orderby'     => 'ID',
-								'order' 	  => 'DESC',
-								'post_status' => 'publish',
-								'numberposts' => 10,
-							    'meta_query' => array(
-							        array(
-							            'key'     => 'specify',
-							            'value'   => $SpncerId
-							        ),
-							    ),
-							);
-							$xoquery = new WP_Query( $args );
+							
+							   global $wpdb;
+                            $t = $wpdb->prefix . 'sponsorships';
+                    
+                            $sql = $wpdb->prepare(
+                                "SELECT *
+                                 FROM {$t}
+                                 WHERE animal_id = %d",
+                                $SpncerId
+                            );
+                    
+                            $query_results = $wpdb->get_results($sql);
+                            //  print_r($query_results);
+							
+
 							$just_count = 0;
-							while ($xoquery->have_posts()) {
-								$xoquery->the_post();
-								$postSpn = get_post(get_the_ID());
-								$spnId = $postSpn->ID;
-								$spnPostStatus = get_post_status($spnId);
-								$spnMeta = get_post_meta($spnId);
+							foreach ($query_results as  $value ) {
+							    
+								$postSpn = get_post($value->sponsor_id);
+								$spnId = $value->sponsor_id;
+								// $spnPostStatus = get_post_status($spnId);
+								$spnMeta = get_post_meta($value->sponsor_id);
 								
 								$spnName = "";
 								if(isset($spnMeta['name'][0])){
@@ -263,16 +309,16 @@ if(!isset($_GET['sp_id']) || empty($_GET['sp_id'])){
 									$spnEmail = $spnMeta['email'][0];
 								}
 								$spnAmount = "";
-								if(isset($spnMeta['amount'][0])){
-									$spnAmount = $spnMeta['amount'][0];
+								if(isset($value->amount)){
+									$spnAmount = $value->amount;
 								}
 								$paymentStatus = "";
-								if(isset($spnMeta['payment_status'][0])){
-									$paymentStatus = $spnMeta['payment_status'][0];
+								if(isset($value->sponsorship_type)){
+									$paymentStatus = $value->sponsorship_type;
 								}
 								$mcCurrency = "GBP";
-								if(isset($spnMeta['mc_currency'][0]) && !empty($spnMeta['mc_currency'][0])){
-									$mcCurrency = $spnMeta['mc_currency'][0];
+								if(isset($value->currency) && !empty($value->currency)){
+									$mcCurrency = $value->currency;
 								}
 								$currencySign = "$";
 								if(isset($currencySymbols[$mcCurrency]['symbol']) && !empty($currencySymbols[$mcCurrency]['symbol'])){
@@ -280,17 +326,8 @@ if(!isset($_GET['sp_id']) || empty($_GET['sp_id'])){
 								}
 								
 								$plan = "";
-								$subplan = "";
-								if(isset($spnMeta['plan'][0])){
-									$plan = $spnMeta['plan'][0];
-									// echo $plan;
-									// die();
-									if ($plan == 'One-time sponsor') {
-										$subplan = 'One-time';
-									} else {
-										$subplan = 'Monthly';
-									}
-								}
+								$subplan = $paymentStatus;
+
 								if ($just_count % 2 == 0) {
 									$alternateclass = 'alternate';
 								} else {
@@ -306,14 +343,11 @@ if(!isset($_GET['sp_id']) || empty($_GET['sp_id'])){
 									<td class="manage-column column-columnname"><a href="#TB_inline?&width=100%&height=auto&inlineId=sponsor-id-<?php echo $spnId; ?>" class="thickbox button-primary">Details</a></td>
 						        </tr>
 								<?php
-								add_thickbox();
+								//add_thickbox();
 								?>
 								
 								<div class="popup-admin" id="sponsor-id-<?php echo $spnId; ?>" style="display:none;">
-									<?php
-										/*echo "<pre>";
-										print_r($spnMeta);*/
-									 ?>
+
 									<h2 class="thick-title">Sponsor Details</h2>
 								    <div class="new-pointer">
 								    	<div class="leftSide"><p><strong>Name</strong></p></div>
@@ -327,7 +361,7 @@ if(!isset($_GET['sp_id']) || empty($_GET['sp_id'])){
 								    	<div class="leftSide"><p><strong>Amount(<?php echo $currencySign; ?>)</strong></p></div>
 								    	<div class="rightSide"><p><?php echo $spnAmount; ?></p></div>
 									</div>
-									<?php if(!empty($paymentStatus)){ ?>
+									<?php if(!empty($paymentStatus) && false){ ?>
 								    <div class="new-pointer">
 								    	<div class="leftSide"><p><strong>Payment Status</strong></p></div>
 								    	<div class="rightSide"><p><?php echo $paymentStatus; ?></p></div>
@@ -335,14 +369,14 @@ if(!isset($_GET['sp_id']) || empty($_GET['sp_id'])){
 									<?php } ?>
 								    <div class="new-pointer">
 								    	<div class="leftSide"><p><strong>Type</strong></p></div>
-								    	<div class="rightSide"><p><?php echo $plan; ?></p></div>
+								    	<div class="rightSide"><p><?php echo $paymentStatus; ?></p></div>
 									</div>
 								</div>
 								
 								<?php
 								$just_count++;
 							}
-							wp_reset_postdata();
+
 						?>
 						</tbody>
 					</table>
@@ -359,159 +393,3 @@ if(!isset($_GET['sp_id']) || empty($_GET['sp_id'])){
 		}
 	</style>
 <?php } ?>
-<?php
- 	function sendCancelEmail($to_email, $name, $messageBody = ""){
- 		$postData = array();
-		$message = '';
-		$message .= '<style type="text/css">
-		body { width: 100% !important; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; margin: 0; padding: 0; background: #eaeaea;font-family: sans-serif; color: #555; }
-		img { outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
-
-		a img { border: none; }
-
-		p { margin: 1em 0; }
-
-		h4 {font-size: 20px; color: #332f2f !important; margin: 0;}
-
-		table td { border-collapse: collapse;}
-
-		table { border-collapse: collapse; mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
-
-		a { color: #000; }
-
-		table.borders td {border: 1px solid #e6e4e4; padding-top: 4px; padding-bottom: 4px; padding-left: 8px; padding-right: 8px; }
-
-		table.first-table {max-width: 100%; width: 600px; background: #fff; border: 1px solid #ccc;}
-
-		table.first-table > tr > td { padding: 10px 20px;}
-
-		.logo-style {padding: 20px;background-color: #fff;}
-
-		</style>
-
-		
-
-		<center style="padding-top: 20px; padding-bottom: 20px;background: #fff;">
-
-		<table cellpadding="20" cellspacing="0" border="0" class="first-table" style="max-width: 100%; width: 600px; background: #fff; border: 1px solid #ccc;">
-
-		<tr>
-
-		<td class="logo-style" style="padding: 20px;background-color: #fff;">
-
-		<table style="" border="0" cellpadding="0" cellspacing="0" height="100%" width="100%">
-
-		<tbody>
-
-		<tr>
-
-		<td><img src="'.get_stylesheet_directory_uri().'/images/tene-logo.png" alt="Tenerife Horse Rescue" style="display: block; margin: 0 auto; width: 75px;"></td>
-
-		</tr>
-
-		</tbody>
-
-		</table>
-
-		</td>
-
-		</tr>
-
-		<tr>
-
-		<td style="padding: 10px 20px;">
-
-		<table class="" border="0" cellpadding="0" cellspacing="0" height="100%" width="100%" style="font-family: sans-serif;color: #555; border: 0; border-bottom: 1px solid #ccc;">
-
-		<tbody>
-
-		<tr>
-
-		<td style="padding-top: 10px; padding-bottom: 10px; padding-left: 0; padding-right: 8px;">
-
-		<h4 style="margin: 0;font-size: 20px; color: #332f2f;">Contact Details</h4>
-
-		</td>
-
-		</tr>
-
-		</tbody>
-
-		</table>
-
-		<table class="borders" border="0" cellpadding="0" cellspacing="0" height="100%" width="100%" style="font-family: sans-serif;color: #555; border: 1px solid #ccc; border-bottom: 0; margin-bottom: 15px;">
-
-		<tbody>	
-			<tr>
-				<td>Hi '.$name.'</td>
-			</tr>
-			<tr>
-				<td>You have received a new message regarding to your sponsorship.</td>
-			</tr>
-			<tr>
-				<td>'.$messageBody.'</td>
-			</tr>
-		</tbody>
-
-		</table>
-
-		</td>
-
-		</tr>
-
-		<tr>
-
-		<td style="padding: 10px 20px;">
-
-		<table class="" border="0" cellpadding="0" cellspacing="0" height="100%" width="100%" style="font-family: sans-serif;color: #555; border: 0; border-top: 1px solid #ccc;">
-
-		<tr>
-
-		<td>
-
-		<table border="0" cellpadding="0" cellspacing="0" height="100%" width="100%" style="font-family: sans-serif;color: #555; font-size: 12px; color: #757575; ">
-
-		<tbody>
-
-		<tr>
-
-		<td style="padding: 20px 0;">
-
-		© 2021 - Tenerife Horse Rescue - All Rights Reserved
-
-		</td>
-
-		</tr>
-
-		</tbody>
-
-		</table>
-
-		</td>
-
-		</tr>
-
-		</table>
-		</td>
-		</tr>
-		</table>
-		</center>';
-
-		$headers = 'Reply-To: donotreply@tenerifehorse.com' . "\n" . 'Return-Path: donotreply@tenerifehorse.org' . "\n";   
-		// More headers
-		$headers .= 'From: Tenerife Horse <donotreply@tenerifehorse.com>' . "\n";
-		$headers .= 'Bcc: bilal.azfar@hashehouse.com, akmal.khan@hashehouse.com, danish.shafique@hashehouse.com' . "\n";
-		$headers .= "MIME-Version: 1.0 \n";
-		$headers .= "Content-Type: text/html; charset=ISO-8859-1 \n";
-		if($_SERVER['SERVER_NAME'] == 'wp.hashe.com'){
-			if(strpos($to_email, 'hashehouse.com') !== false) {
-				//Do send only hashe emails
-			}else{
-				$to_email = "muhammad.babar@hashehouse.com";
-			}
-		}
-		$subject="Message Received";
-		mail($to_email,$subject,$message,$headers);
-	}
-
-?>
