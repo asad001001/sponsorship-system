@@ -40,21 +40,13 @@ function my_admin_page_contents() {
     global $pagenow;
     #Email function for message
     require_once( plugin_dir_path( __FILE__ ) . 'sponsor-message-email.php' );
-    // require_once( plugin_dir_path( __FILE__ ) . 'preview-email.php' );
     
-    if(isset($_GET['sp_id']) && !empty($_GET['sp_id'])){
-		$postId = $_GET['sp_id'];
+    if ( ! empty( $_GET['sp_id'] ) ) {
+		$postId = absint( $_GET['sp_id'] );
 		require_once( plugin_dir_path( __FILE__ ) . 'message-single-screen.php' );
-    }else{
-    	if(isset($_GET['test-old'])){
-			require_once( plugin_dir_path( __FILE__ ) . 'home-screen-old.php' );
-		}else{
-    		
-    		require_once( plugin_dir_path( __FILE__ ) . 'home-screen.php' );
-    		
-		}
-		
-	} 
+    } else {
+		require_once( plugin_dir_path( __FILE__ ) . 'home-screen.php' );
+	}
 }
 
 function my_acf_load_value( $value, $post_id, $field ) {

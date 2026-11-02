@@ -47,13 +47,13 @@ if ( ! function_exists('hm_msglog_get_sponsor_ids_by_animal') ) {
 	* Submit message & save data & send emails if sponsors exists
 	*/
 	
-	if(isset($_POST['post_message_all']) && isset($_POST['post_text']) && !empty($_POST['post_text'])){
-		$sponsorshipId = trim($_POST['spon_id']);
+	if(isset($_POST['post_message_all']) && check_admin_referer( 'hm_send_message', 'hm_nonce' ) && isset($_POST['post_text']) && !empty($_POST['post_text'])){
+		$sponsorshipId = absint( $_POST['spon_id'] );
 		$sponsorEmails = array();
 		#save Message Post
 		$my_post = array(
-			'post_title' => $_POST['subject02'],
-			'post_content' => $_POST['post_text'],
+			'post_title' => sanitize_text_field( wp_unslash( $_POST['subject02'] ?? '' ) ),
+			'post_content' => wp_kses_post( wp_unslash( $_POST['post_text'] ) ),
 			'post_status' => 'publish',
 			'post_type' => 'messages',
 			'post_author' => get_current_user_id()
@@ -92,7 +92,7 @@ if ( ! empty($sponsor_ids) ) {
 				$sponName = get_post_meta($id, 'name', TRUE);
 				$sponEmail = get_post_meta($id, 'email', TRUE);
 				if(!in_array($sponEmail, $sponsorEmails)){
-					sendCancelEmail($sponEmail, $sponName, $_POST['post_text'], $_POST['subject02']);
+					sendCancelEmail($sponEmail, $sponName, wp_kses_post( wp_unslash( $_POST['post_text'] ) ), sanitize_text_field( wp_unslash( $_POST['subject02'] ?? '' ) ));
 				}
 				$sponsorEmails[] = $sponEmail;
 			}
@@ -130,6 +130,7 @@ if ( ! empty($sponsor_ids) ) {
 		<div class="col-md-12">
 			<form method="post" action="">
 				<h3>Send New Message</h3>
+				<?php wp_nonce_field( 'hm_send_message', 'hm_nonce' ); ?>
 				<input type="hidden" name="post_message_all" value="true"/>
 				<input type="hidden" id="spon_id" name="spon_id" value=""/>
 				<input type="hidden" id="spon_title" name="spon_title" value=""/>

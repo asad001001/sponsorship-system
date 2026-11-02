@@ -2,8 +2,8 @@
 /**
  * Plugin Name: Sponsorship System
  * Description: Sponsorships + Transactions stored in custom DB tables, Sponsors remain CPT. (IPN is handled by your existing IPN Callback Page Template)
- * Version: 1.0.0
- * Author: Hashe
+ * Version: 1.1.0
+ * Author: Asad Ali (Hashe Computer Solutions)
  */
 
 if (!defined('ABSPATH')) exit;
@@ -20,14 +20,10 @@ define('SP_FROM_EMAIL',  'donotreply@tenerifehorserescue.com');
 define('SP_FROM_NAME',   'Tenerife Horse Rescue');
 define('SP_ROLE',        'sponser'); // your existing role slug
 
-// Optional: include your modules
-if (file_exists(plugin_dir_path(__FILE__) . 'messages-module/hashe-messages/hashe-messages.php')) {
-    require_once plugin_dir_path(__FILE__) . 'messages-module/hashe-messages/hashe-messages.php';
-    require_once plugin_dir_path(__FILE__) . 'messages-module/hashe-messages/preview-email.php';
-}
-if (file_exists(plugin_dir_path(__FILE__) . 'reporting-module/hashe-reporting/plugin.php')) {
-    require_once plugin_dir_path(__FILE__) . 'reporting-module/hashe-reporting/plugin.php';
-}
+// Modules
+require_once plugin_dir_path(__FILE__) . 'modules/messages/messages.php';
+require_once plugin_dir_path(__FILE__) . 'modules/messages/preview-email.php';
+require_once plugin_dir_path(__FILE__) . 'modules/reporting/reporting.php';
 
 /**
  * =========================
@@ -846,7 +842,8 @@ function sp_process_paypal_ipn($raw_body, array $ipn) {
     }
 
     // map status
-    $is_paid = true; //($payment_status === 'Completed');
+    // Only count money that actually cleared. Pending/Refunded/Reversed IPNs must not activate.
+    $is_paid = ($payment_status === 'Completed');
     $status = 'pending';
     if ($txn_type === 'subscr_cancel') $status = 'cancelled';
     elseif ($txn_type === 'subscr_failed') $status = 'failed';
